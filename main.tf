@@ -31,4 +31,5 @@ module "kubernetes" {
   nks_version            = var.nks_version
   nks_service_name       = var.nks_service_name
   nks_server_image       = var.nks_server_image
+  nks_nodepools          = var.nks_nodepools
 }

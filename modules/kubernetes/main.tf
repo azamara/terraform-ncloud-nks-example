@@ -77,7 +77,9 @@ data "ncloud_nks_server_images" "image" {
   }
 }
 
+# Get server products for each nodepool with different CPU/memory combinations
 data "ncloud_nks_server_products" "product" {
+  for_each      = { for idx, pool in var.nks_nodepools : idx => pool }
   software_code = data.ncloud_nks_server_images.image.images[0].value
   zone          = var.zone
 
@@ -88,30 +90,40 @@ data "ncloud_nks_server_products" "product" {
 
   filter {
     name   = "cpu_count"
-    values = ["2"]
+    values = [each.value.cpu_count]
   }
 
   filter {
     name   = "memory_size"
-    values = ["4GB"]
+    values = [each.value.memory_size]
   }
 }
 
+# Create nodepool for each entry in the nks_nodepools variable
 resource "ncloud_nks_node_pool" "node_pool" {
-  cluster_uuid     = ncloud_nks_cluster.cluster.uuid
-  node_pool_name   = "pool1"
-  node_count       = 1
-  software_code    = data.ncloud_nks_server_images.image.images[0].value
-  server_spec_code = data.ncloud_nks_server_products.product.products.0.value
-  storage_size     = 200
-  autoscale {
-    enabled = false
-    min     = 0
-    max     = 0
+  for_each        = { for idx, pool in var.nks_nodepools : idx => pool }
+  cluster_uuid    = ncloud_nks_cluster.cluster.uuid
+  node_pool_name  = each.value.name
+  node_count      = each.value.node_count
+  software_code   = data.ncloud_nks_server_images.image.images[0].value
+  server_spec_code = data.ncloud_nks_server_products.product[each.key].products.0.value
+  storage_size    = each.value.storage_size
+  
+  dynamic "autoscale" {
+    for_each = each.value.autoscale != null ? [each.value.autoscale] : []
+    content {
+      enabled = autoscale.value.enabled
+      min     = autoscale.value.min
+      max     = autoscale.value.max
+    }
   }
-  label {
-    key   = "foo"
-    value = "bar"
+  
+  dynamic "label" {
+    for_each = each.value.labels != null ? each.value.labels : []
+    content {
+      key   = label.value.key
+      value = label.value.value
+    }
   }
 }
 #endregion
